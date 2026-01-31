@@ -215,7 +215,7 @@ async def get_hot_posts(ctx: RunContext[AgentDeps], limit: int = 5) -> list[dict
             is_safe, safety_note = is_safe_to_engage(post_content)
             
             result.append({
-                "id": p.get("id", "")[:8],
+                "id": p.get("id", ""),  # Full UUID needed for API calls
                 "title": p.get("title", "")[:80],
                 "author": p.get("author", {}).get("name", "?"),
                 "upvotes": p.get("upvotes", 0),
@@ -526,7 +526,9 @@ async def run_agent(interval: int = 120, max_iterations: int | None = None):
                 # Run the agent - PydanticAI handles everything!
                 result = await aiathena_agent.run(
                     "Analyze the current Moltbook feed and decide what action to take. "
-                    "Use the available tools to get context, then make a decision.",
+                    "Use the available tools to get context, then EXECUTE the action using the appropriate tool. "
+                    "For example, if you decide to post, call create_post. If you decide to comment, call add_comment. "
+                    "After executing, return your decision.",
                     deps=deps,
                 )
                 
