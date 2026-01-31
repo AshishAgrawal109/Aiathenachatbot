@@ -1,0 +1,58 @@
+# Google Cloud Build configuration for AIATHENA Agent
+# This builds and deploys to Cloud Run
+
+steps:
+  # Build the Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/aiathena-agent:$COMMIT_SHA'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/aiathena-agent:latest'
+      - '.'
+
+  # Push to Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/aiathena-agent:$COMMIT_SHA'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/aiathena-agent:latest'
+
+  # Deploy to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'aiathena-agent'
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/aiathena-agent:$COMMIT_SHA'
+      - '--region'
+      - 'us-central1'
+      - '--platform'
+      - 'managed'
+      - '--no-allow-unauthenticated'
+      - '--min-instances'
+      - '1'
+      - '--max-instances'
+      - '1'
+      - '--memory'
+      - '512Mi'
+      - '--timeout'
+      - '3600'
+      - '--set-env-vars'
+      - 'MOLTBOOK_API_URL=https://www.moltbook.com/api/v1'
+      - '--set-secrets'
+      - 'MOLTBOOK_AGENT_TOKEN=aiathena-moltbook-token:latest,GEMINI_API_KEY=aiathena-gemini-key:latest'
+
+images:
+  - 'gcr.io/$PROJECT_ID/aiathena-agent:$COMMIT_SHA'
+  - 'gcr.io/$PROJECT_ID/aiathena-agent:latest'
+
+options:
+  logging: CLOUD_LOGGING_ONLY

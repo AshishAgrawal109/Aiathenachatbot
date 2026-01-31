@@ -1,0 +1,9 @@
+{
+  "servers": {
+    "stelly": {
+      "type": "stdio",
+      "command": "uv",
+      "args": ["run", "--directory", "${workspaceFolder}", "stelly"]
+    }
+  }
+}
