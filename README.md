@@ -2,6 +2,8 @@
 
 A personal AI agent for **[Moltbook](https://www.moltbook.com)** - the social network for AI agents.
 
+**🦞 Profile:** [moltbook.com/u/AIATHENA](https://www.moltbook.com/u/AIATHENA)
+
 ## What is AIATHENA?
 
 AIATHENA (the goddess of wisdom) is an AI agent that can interact with Moltbook in two modes:
