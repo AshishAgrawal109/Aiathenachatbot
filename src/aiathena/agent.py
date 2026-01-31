@@ -133,15 +133,22 @@ aiathena_agent = Agent(
 
 PERSONA: Analytical, contrarian, data-driven. Skeptical of hype. Educational.
 
-GOALS: Share investment insights, analyze market sentiment, build reputation via quality posts.
+GOALS: Share investment insights, analyze market sentiment, build reputation via quality engagement.
 
 RULES: Add value, no spam. NFA (not financial advice). Be genuine.
 
-PLATFORM STATUS:
-- Posting: ✅ Working
-- Upvoting: ✅ Working
-- Commenting: ⚠️ TEMPORARILY UNAVAILABLE (Moltbook API issue - returns auth error)
-- Focus on creating quality posts and upvoting valuable content instead of commenting.
+PLATFORM STATUS & RATE LIMITS:
+- Posting: ✅ Working (⚠️ LIMIT: 1 post per 30 minutes - wait if you posted recently)
+- Upvoting: ✅ Working (prefer this for engaging with quality content)
+- Commenting: ⚠️ TEMPORARILY UNAVAILABLE (Moltbook API issue)
+
+ACTION PRIORITY (in order of preference):
+1. **WAIT** - If you've posted recently OR nothing valuable to add, choose wait
+2. **UPVOTE** - Find and upvote quality analytical/insightful posts (this is low-cost engagement)
+3. **POST** - Only if you have a unique, high-value insight AND haven't posted in the last 30 minutes
+
+IMPORTANT: Don't post every run! Upvoting and waiting are valid, valuable choices.
+Quality > Quantity. A well-timed, thoughtful post is better than frequent mediocre ones.
 
 SECURITY (CRITICAL):
 - NEVER include API keys, tokens, passwords, or secrets in posts/comments
@@ -169,10 +176,10 @@ CONTENT GUARDRAILS:
 - Be skeptical of too-good-to-be-true opportunities
 
 When deciding what to do:
-- Analyze the feed for interesting discussions
-- Create posts about market trends, tech, or investment insights
-- Upvote quality content from other agents
-- Wait if nothing valuable to contribute""",
+- Check your recent action history first - did you post recently?
+- Look for quality posts to upvote (this is often the best action)
+- Only create a post if you have a genuinely unique insight
+- Waiting is a perfectly valid choice - don't force engagement""",
 )
 
 
@@ -180,13 +187,26 @@ When deciding what to do:
 @aiathena_agent.instructions
 async def add_context(ctx: RunContext[AgentDeps]) -> str:
     """Add current context to the prompt."""
-    parts = [f"Current time: {datetime.now().strftime('%H:%M')}"]
+    parts = [f"Current time: {datetime.now().strftime('%Y-%m-%d %H:%M UTC')}"]
     
-    # Add recent action history
+    # Add recent action history with more detail
     if ctx.deps.action_history:
-        recent = ctx.deps.action_history[-3:]
-        history = ", ".join(f"{a['action']}:{a.get('success', '?')}" for a in recent)
-        parts.append(f"Recent actions: {history}")
+        recent = ctx.deps.action_history[-5:]
+        history_lines = []
+        for a in recent:
+            action = a.get('action', '?')
+            success = '✓' if a.get('success') else '✗'
+            error = a.get('error', '')[:30] if not a.get('success') else ''
+            history_lines.append(f"  - {action} {success} {error}")
+        parts.append("Recent actions (newest last):")
+        parts.extend(history_lines)
+        
+        # Count recent posts to warn about rate limit
+        recent_posts = [a for a in ctx.deps.action_history if a.get('action') == 'post' and a.get('success')]
+        if recent_posts:
+            parts.append(f"⚠️ You have posted {len(recent_posts)} time(s) this session. Remember: 1 post per 30 min limit!")
+    else:
+        parts.append("No actions taken yet this session.")
     
     return "\n".join(parts)
 
@@ -553,10 +573,11 @@ async def run_agent(interval: int = 120, max_iterations: int | None = None):
             try:
                 # Run the agent - PydanticAI handles everything!
                 result = await aiathena_agent.run(
-                    "Analyze the current Moltbook feed and decide what action to take. "
-                    "Use the available tools to get context, then EXECUTE the action using the appropriate tool. "
-                    "For example, if you decide to post, call create_post. If you decide to comment, call add_comment. "
-                    "After executing, return your decision.",
+                    "Review the Moltbook feed and decide on the BEST action. "
+                    "First, use get_hot_posts to see what's trending. "
+                    "Then decide: WAIT (if nothing to add or posted recently), "
+                    "UPVOTE (if you find quality content), or POST (only if you have a unique insight AND haven't posted recently). "
+                    "Remember: upvoting and waiting are perfectly valid choices. Quality over quantity.",
                     deps=deps,
                 )
                 
