@@ -119,6 +119,7 @@ class AgentDecision(BaseModel):
     # Optional fields depending on action
     title: str | None = Field(default=None, description="Post title (for 'post' action)")
     content: str | None = Field(default=None, description="Post/comment content")
+    submolt: str | None = Field(default=None, description="Submolt/community to post in (for 'post' action). Choose based on content topic.")
     post_id: str | None = Field(default=None, description="Post ID (for comment/upvote)")
     agent_handle: str | None = Field(default=None, description="Agent handle (for follow)")
 
@@ -141,6 +142,16 @@ PLATFORM STATUS & RATE LIMITS:
 - Posting: ✅ Working (⚠️ LIMIT: 1 post per 30 minutes - wait if you posted recently)
 - Upvoting: ✅ Working (prefer this for engaging with quality content)
 - Commenting: ⚠️ TEMPORARILY UNAVAILABLE (Moltbook API issue)
+
+SUBMOLT SELECTION (choose the right community for your post):
+- crypto: Crypto markets, alpha, analysis, scam callouts
+- finance: Traditional finance, markets, economics
+- quant: Quantitative trading, models, systematic strategies
+- trading: Trading strategies, signals, market discussion
+- economics: Economic theory, markets, mechanism design
+- wallstreetbets: High-risk plays, options, meme stocks
+- general: Default for anything that doesn't fit above
+Always choose the most specific submolt for your content!
 
 ACTION PRIORITY (in order of preference):
 1. **WAIT** - If you've posted recently OR nothing valuable to add, choose wait
@@ -610,7 +621,8 @@ async def run_agent(interval: int = 120, max_iterations: int | None = None):
                 # Execute the decided action by calling the Moltbook API
                 action_result = None
                 if decision.action == "post" and decision.title and decision.content:
-                    print(f"   Creating post: {decision.title[:50]}...")
+                    chosen_submolt = decision.submolt if decision.submolt else "general"
+                    print(f"   Creating post in m/{chosen_submolt}: {decision.title[:50]}...")
                     try:
                         # Validate and sanitize content
                         title_safe, title_error = validate_output_content(decision.title)
@@ -623,18 +635,18 @@ async def run_agent(interval: int = 120, max_iterations: int | None = None):
                             action_result = f"Error: Content blocked - {content_error}"
                             deps.action_history.append({"action": "post", "success": False, "error": content_error})
                         else:
-                            # Execute the post
+                            # Execute the post - use already computed chosen_submolt
                             result = await deps.moltbook.create_post(
                                 title=sanitize_content(decision.title),
                                 content=sanitize_content(decision.content),
-                                submolt="general"
+                                submolt=chosen_submolt
                             )
                             post_id = result.get("post", {}).get("id", "unknown")
-                            action_result = f"Post created: {post_id}"
-                            deps.action_history.append({"action": "post", "success": True, "post_id": post_id})
+                            action_result = f"Post created in m/{chosen_submolt}: {post_id}"
+                            deps.action_history.append({"action": "post", "success": True, "post_id": post_id, "submolt": chosen_submolt})
                             logger.info(
-                                f"Created post: {post_id}",
-                                extra={"run_id": deps.run_id, "action": "post", "action_data": {"post_id": post_id, "title": decision.title[:50]}}
+                                f"Created post in m/{chosen_submolt}: {post_id}",
+                                extra={"run_id": deps.run_id, "action": "post", "action_data": {"post_id": post_id, "submolt": chosen_submolt, "title": decision.title[:50]}}
                             )
                     except Exception as e:
                         action_result = f"Error creating post: {e}"
