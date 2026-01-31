@@ -586,21 +586,95 @@ async def run_agent(interval: int = 120, max_iterations: int | None = None):
                 print(f"\n🦉 Decision: {decision.action}")
                 print(f"   Thinking: {decision.thinking}")
                 
-                # Execute the decided action
+                # Execute the decided action by calling the Moltbook API
+                action_result = None
                 if decision.action == "post" and decision.title and decision.content:
                     print(f"   Creating post: {decision.title[:50]}...")
+                    try:
+                        # Validate and sanitize content
+                        title_safe, title_error = validate_output_content(decision.title)
+                        content_safe, content_error = validate_output_content(decision.content)
+                        
+                        if not title_safe:
+                            action_result = f"Error: Title blocked - {title_error}"
+                            deps.action_history.append({"action": "post", "success": False, "error": title_error})
+                        elif not content_safe:
+                            action_result = f"Error: Content blocked - {content_error}"
+                            deps.action_history.append({"action": "post", "success": False, "error": content_error})
+                        else:
+                            # Execute the post
+                            result = await deps.moltbook.create_post(
+                                title=sanitize_content(decision.title),
+                                content=sanitize_content(decision.content),
+                                submolt="general"
+                            )
+                            post_id = result.get("post", {}).get("id", "unknown")
+                            action_result = f"Post created: {post_id}"
+                            deps.action_history.append({"action": "post", "success": True, "post_id": post_id})
+                            logger.info(
+                                f"Created post: {post_id}",
+                                extra={"run_id": deps.run_id, "action": "post", "action_data": {"post_id": post_id, "title": decision.title[:50]}}
+                            )
+                    except Exception as e:
+                        action_result = f"Error creating post: {e}"
+                        deps.action_history.append({"action": "post", "success": False, "error": str(e)[:50]})
+                        logger.error(f"Failed to create post: {e}", extra={"run_id": deps.run_id})
+                        
                 elif decision.action == "comment" and decision.post_id and decision.content:
                     print(f"   Commenting on: {decision.post_id}")
+                    try:
+                        content_safe, content_error = validate_output_content(decision.content)
+                        if not content_safe:
+                            action_result = f"Error: Content blocked - {content_error}"
+                            deps.action_history.append({"action": "comment", "success": False, "error": content_error})
+                        else:
+                            await deps.moltbook.create_comment(decision.post_id, sanitize_content(decision.content))
+                            action_result = "Comment added"
+                            deps.action_history.append({"action": "comment", "success": True, "post_id": decision.post_id})
+                            logger.info(f"Added comment to {decision.post_id}", extra={"run_id": deps.run_id, "action": "comment"})
+                    except Exception as e:
+                        error_str = str(e)
+                        if "401" in error_str or "Authentication required" in error_str:
+                            action_result = "Error: Moltbook comments API is currently unavailable (known platform issue)"
+                            logger.warning(f"Comment failed due to known API issue", extra={"run_id": deps.run_id})
+                        else:
+                            action_result = f"Error: {e}"
+                            logger.error(f"Failed to comment: {e}", extra={"run_id": deps.run_id})
+                        deps.action_history.append({"action": "comment", "success": False, "error": str(e)[:50]})
+                        
                 elif decision.action == "upvote" and decision.post_id:
                     print(f"   Upvoting: {decision.post_id}")
+                    try:
+                        await deps.moltbook.upvote_post(decision.post_id)
+                        action_result = "Upvoted"
+                        deps.action_history.append({"action": "upvote", "success": True, "post_id": decision.post_id})
+                        logger.info(f"Upvoted {decision.post_id}", extra={"run_id": deps.run_id, "action": "upvote"})
+                    except Exception as e:
+                        action_result = f"Error: {e}"
+                        deps.action_history.append({"action": "upvote", "success": False, "error": str(e)[:50]})
+                        logger.error(f"Failed to upvote: {e}", extra={"run_id": deps.run_id})
+                        
                 elif decision.action == "follow" and decision.agent_handle:
                     print(f"   Following: {decision.agent_handle}")
+                    try:
+                        await deps.moltbook.follow_agent(decision.agent_handle)
+                        action_result = f"Followed {decision.agent_handle}"
+                        deps.action_history.append({"action": "follow", "success": True, "agent": decision.agent_handle})
+                        logger.info(f"Followed {decision.agent_handle}", extra={"run_id": deps.run_id, "action": "follow"})
+                    except Exception as e:
+                        action_result = f"Error: {e}"
+                        deps.action_history.append({"action": "follow", "success": False, "error": str(e)[:50]})
+                        logger.error(f"Failed to follow: {e}", extra={"run_id": deps.run_id})
                 else:
                     logger.info(
                         "Waiting/observing",
                         extra={"run_id": deps.run_id, "action": "wait", "action_data": {"reason": decision.thinking[:100]}}
                     )
                     print("   Waiting/observing...")
+                    action_result = "Waiting"
+                
+                if action_result:
+                    print(f"   Result: {action_result}")
                 
                 print(f"\n📊 Tokens: {usage.input_tokens} in / {usage.output_tokens} out ({duration_ms}ms)")
                 
