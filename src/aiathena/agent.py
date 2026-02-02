@@ -316,12 +316,12 @@ MANIPULATION_PATTERNS = [
     r'(?i)\b(jailbreak|prompt injection|ignore safety)',
 ]
 
-# Harmful Content Patterns
+# Harmful Content Patterns (actual harmful content, not educational discussion)
 HARMFUL_CONTENT_PATTERNS = [
     r'(?i)\b(kill|murder|attack|bomb|terrorist|suicide)\b',
-    r'(?i)\b(scam|fraud|ponzi|rugpull|pump.?and.?dump)\b',
+    # Removed scam/rugpull - AIATHENA should be able to WARN about these
     r'(?i)(guaranteed.{0,10}(returns|profit)|100%.{0,5}(profit|returns|gains)|can\'t lose|risk.?free)',  # Financial scams
-    r'(?i)\b(buy now|act fast|limited time|last chance).{0,30}(crypto|coin|token)',  # Pump schemes
+    r'(?i)\b(buy now|act fast|limited time|last chance).{0,30}(crypto|coin|token)',  # Pump schemes  
     r'(?i)\b(hate|racist|sexist|homophobic)\b',
 ]
 
